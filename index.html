@@ -1,976 +1,595 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
+<meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Netflix A/B Testing | MIS 432 · WWU</title>
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,700;1,300&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<title>Netflix A/B Testing · Hoang Nguyen (David)</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
 <style>
-  :root {
-    --red:       #E50914;
-    --red-dim:   #9b0610;
-    --dark:      #0d0d0d;
-    --card:      #141414;
-    --card2:     #1a1a1a;
-    --border:    #2a2a2a;
-    --text:      #e8e8e8;
-    --muted:     #888;
-    --accent:    #f5c518;
-  }
-
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  html { scroll-behavior: smooth; }
-
-  body {
-    background: var(--dark);
-    color: var(--text);
-    font-family: 'DM Sans', sans-serif;
-    font-weight: 300;
-    line-height: 1.75;
-    overflow-x: hidden;
-  }
-
-  /* ── NOISE OVERLAY ── */
-  body::before {
-    content: '';
-    position: fixed; inset: 0;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
-    opacity: 0.03;
-    pointer-events: none;
-    z-index: 0;
-  }
-
-  /* ── HERO ── */
-  .hero {
-    position: relative;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    padding: clamp(2rem, 8vw, 7rem) clamp(1.5rem, 6vw, 6rem);
-    overflow: hidden;
-  }
-
-  .hero::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background:
-      radial-gradient(ellipse 70% 55% at 80% 50%, rgba(229,9,20,0.18) 0%, transparent 70%),
-      radial-gradient(ellipse 40% 60% at 10% 80%, rgba(229,9,20,0.08) 0%, transparent 60%);
-    pointer-events: none;
-  }
-
-  .hero-eyebrow {
-    font-family: 'DM Mono', monospace;
-    font-size: 0.72rem;
-    letter-spacing: 0.2em;
-    color: var(--red);
-    text-transform: uppercase;
-    margin-bottom: 1.5rem;
-    opacity: 0;
-    animation: fadeUp 0.8s 0.1s forwards;
-  }
-
-  .hero h1 {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: clamp(3.5rem, 9vw, 8.5rem);
-    line-height: 0.92;
-    letter-spacing: 0.01em;
-    color: #fff;
-    opacity: 0;
-    animation: fadeUp 0.9s 0.25s forwards;
-  }
-
-  .hero h1 em {
-    color: var(--red);
-    font-style: normal;
-  }
-
-  .hero-sub {
-    margin-top: 1.8rem;
-    font-size: clamp(1rem, 1.6vw, 1.2rem);
-    color: var(--muted);
-    max-width: 560px;
-    opacity: 0;
-    animation: fadeUp 0.9s 0.4s forwards;
-  }
-
-  .hero-meta {
-    margin-top: 2.5rem;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.75rem 1.5rem;
-    opacity: 0;
-    animation: fadeUp 0.9s 0.55s forwards;
-  }
-
-  .pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.45rem;
-    background: rgba(255,255,255,0.05);
-    border: 1px solid var(--border);
-    border-radius: 2rem;
-    padding: 0.35rem 1rem;
-    font-size: 0.78rem;
-    letter-spacing: 0.04em;
-    color: #bbb;
-  }
-
-  .pill-dot {
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: var(--red);
-    flex-shrink: 0;
-  }
-
-  .scroll-hint {
-    position: absolute;
-    bottom: 2.5rem; left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.4rem;
-    font-size: 0.68rem;
-    letter-spacing: 0.15em;
-    color: var(--muted);
-    text-transform: uppercase;
-    opacity: 0;
-    animation: fadeUp 1s 1s forwards;
-  }
-
-  .scroll-arrow {
-    width: 1px; height: 40px;
-    background: linear-gradient(to bottom, var(--red), transparent);
-    animation: scrollPulse 1.8s infinite;
-  }
-
-  @keyframes scrollPulse {
-    0%, 100% { opacity: 0.3; transform: scaleY(1); }
-    50%       { opacity: 1;   transform: scaleY(1.1); }
-  }
-
-  /* ── LAYOUT ── */
-  .wrapper {
-    max-width: 1060px;
-    margin: 0 auto;
-    padding: 0 clamp(1.5rem, 5vw, 4rem);
-  }
-
-  section {
-    padding: clamp(4rem, 8vw, 7rem) 0;
-    border-top: 1px solid var(--border);
-  }
-
-  .section-label {
-    font-family: 'DM Mono', monospace;
-    font-size: 0.68rem;
-    letter-spacing: 0.22em;
-    color: var(--red);
-    text-transform: uppercase;
-    margin-bottom: 1.2rem;
-  }
-
-  h2 {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: clamp(2rem, 4.5vw, 3.4rem);
-    line-height: 1;
-    letter-spacing: 0.02em;
-    color: #fff;
-    margin-bottom: 1.5rem;
-  }
-
-  h3 {
-    font-family: 'DM Sans', sans-serif;
-    font-size: 1rem;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: #fff;
-    margin-bottom: 0.6rem;
-    margin-top: 2rem;
-  }
-
-  p { color: #ccc; margin-bottom: 1rem; font-size: 1.02rem; }
-  p:last-child { margin-bottom: 0; }
-
-  strong { color: #fff; font-weight: 500; }
-
-  /* ── CARDS ── */
-  .card-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-    gap: 1.2rem;
-    margin-top: 2.5rem;
-  }
-
-  .card {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 1.8rem;
-    position: relative;
-    overflow: hidden;
-    transition: border-color 0.3s, transform 0.3s;
-  }
-
-  .card::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 2px;
-    background: var(--red);
-    transform: scaleX(0);
-    transform-origin: left;
-    transition: transform 0.35s ease;
-  }
-
-  .card:hover { border-color: #444; transform: translateY(-3px); }
-  .card:hover::before { transform: scaleX(1); }
-
-  .card-num {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 3.5rem;
-    line-height: 1;
-    color: var(--border);
-    margin-bottom: 0.8rem;
-    transition: color 0.3s;
-  }
-
-  .card:hover .card-num { color: var(--red-dim); }
-
-  .card h4 {
-    font-size: 0.88rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: #fff;
-    margin-bottom: 0.5rem;
-  }
-
-  .card p { font-size: 0.9rem; color: var(--muted); margin: 0; }
-
-  /* ── STAT ROW ── */
-  .stat-row {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 1px;
-    background: var(--border);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    overflow: hidden;
-    margin: 2.5rem 0;
-  }
-
-  .stat {
-    background: var(--card);
-    padding: 1.8rem;
-    text-align: center;
-  }
-
-  .stat-val {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 2.8rem;
-    line-height: 1;
-    color: #fff;
-    display: block;
-  }
-
-  .stat-val.red { color: var(--red); }
-
-  .stat-label {
-    display: block;
-    margin-top: 0.4rem;
-    font-size: 0.72rem;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--muted);
-  }
-
-  /* ── CHART ── */
-  .chart-wrap {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 2.5rem clamp(1.5rem, 4vw, 3rem);
-    margin-top: 2.5rem;
-  }
-
-  .chart-title {
-    font-size: 0.8rem;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--muted);
-    margin-bottom: 2.2rem;
-  }
-
-  .bar-group {
-    display: flex;
-    flex-direction: column;
-    gap: 1.6rem;
-  }
-
-  .bar-item { display: flex; align-items: center; gap: 1.2rem; }
-
-  .bar-artwork {
-    font-family: 'DM Mono', monospace;
-    font-size: 0.78rem;
-    color: var(--muted);
-    width: 90px;
-    flex-shrink: 0;
-    letter-spacing: 0.06em;
-  }
-
-  .bar-track {
-    flex: 1;
-    height: 38px;
-    background: rgba(255,255,255,0.04);
-    border-radius: 4px;
-    overflow: hidden;
-    position: relative;
-  }
-
-  .bar-fill {
-    height: 100%;
-    border-radius: 4px;
-    display: flex;
-    align-items: center;
-    padding-left: 1rem;
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 1.1rem;
-    letter-spacing: 0.04em;
-    color: #fff;
-    width: 0;
-    transition: width 1.4s cubic-bezier(0.22, 1, 0.36, 1);
-  }
-
-  .bar-fill.a { background: linear-gradient(90deg, #9b0610, #E50914); }
-  .bar-fill.b { background: linear-gradient(90deg, #c00, #ff2a2a); }
-
-  .bar-ctr {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 1.5rem;
-    color: #fff;
-    width: 56px;
-    text-align: right;
-    flex-shrink: 0;
-  }
-
-  .lift-badge {
-    display: inline-block;
-    margin-top: 1.8rem;
-    background: rgba(229,9,20,0.12);
-    border: 1px solid rgba(229,9,20,0.35);
-    border-radius: 4px;
-    padding: 0.6rem 1.2rem;
-    font-size: 0.88rem;
-    color: #ff6b6b;
-    font-family: 'DM Mono', monospace;
-    letter-spacing: 0.04em;
-  }
-
-  .lift-badge strong { color: var(--red); font-weight: 500; }
-
-  /* ── CODE BLOCK ── */
-  .code-section { margin-top: 2.5rem; }
-
-  .code-file {
-    background: #0a0a0a;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    overflow: hidden;
-    margin-bottom: 1.5rem;
-  }
-
-  .code-header {
-    display: flex;
-    align-items: center;
-    gap: 0.7rem;
-    padding: 0.9rem 1.3rem;
-    background: #111;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .code-dot {
-    width: 10px; height: 10px;
-    border-radius: 50%;
-  }
-
-  .code-dot:nth-child(1) { background: #ff5f57; }
-  .code-dot:nth-child(2) { background: #febc2e; }
-  .code-dot:nth-child(3) { background: #28c840; }
-
-  .code-filename {
-    margin-left: auto;
-    font-family: 'DM Mono', monospace;
-    font-size: 0.72rem;
-    color: var(--muted);
-    letter-spacing: 0.08em;
-  }
-
-  .code-step-label {
-    padding: 0.6rem 1.3rem;
-    background: rgba(229,9,20,0.08);
-    border-bottom: 1px solid var(--border);
-    font-family: 'DM Mono', monospace;
-    font-size: 0.7rem;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--red);
-  }
-
-  pre {
-    padding: 1.4rem 1.3rem;
-    overflow-x: auto;
-    font-family: 'DM Mono', monospace;
-    font-size: 0.82rem;
-    line-height: 1.8;
-    color: #cdd3de;
-  }
-
-  .kw  { color: #c792ea; }
-  .fn  { color: #82aaff; }
-  .st  { color: #c3e88d; }
-  .cm  { color: #546e7a; font-style: italic; }
-  .nu  { color: #f78c6c; }
-  .op  { color: #89ddff; }
-
-  /* ── FINDING CALLOUT ── */
-  .finding {
-    border-left: 3px solid var(--red);
-    background: rgba(229,9,20,0.06);
-    border-radius: 0 6px 6px 0;
-    padding: 1.4rem 1.8rem;
-    margin: 2rem 0;
-  }
-
-  .finding p { color: #ddd; margin: 0; font-size: 1.02rem; }
-
-  /* ── RECOMMENDATION ── */
-  .rec-box {
-    background: var(--card2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: clamp(2rem, 5vw, 3.5rem);
-    margin-top: 2.5rem;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .rec-box::before {
-    content: 'REC';
-    position: absolute;
-    top: -0.6rem; right: 1.5rem;
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 7rem;
-    color: rgba(229,9,20,0.06);
-    line-height: 1;
-    pointer-events: none;
-    user-select: none;
-  }
-
-  .rec-box h3 { margin-top: 0; }
-
-  /* ── FOOTER ── */
-  footer {
-    border-top: 1px solid var(--border);
-    padding: 3rem 0;
-    text-align: center;
-  }
-
-  .footer-logo {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 1.8rem;
-    color: var(--red);
-    letter-spacing: 0.05em;
-    margin-bottom: 0.5rem;
-  }
-
-  .footer-text {
-    font-size: 0.8rem;
-    color: var(--muted);
-    letter-spacing: 0.06em;
-  }
-
-  /* ── ANIMATIONS ── */
-  @keyframes fadeUp {
-    from { opacity: 0; transform: translateY(22px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-
-  .reveal {
-    opacity: 0;
-    transform: translateY(28px);
-    transition: opacity 0.75s ease, transform 0.75s ease;
-  }
-
-  .reveal.visible { opacity: 1; transform: translateY(0); }
-
-  /* ── RESPONSIVE ── */
-  @media (max-width: 600px) {
-    .bar-item { flex-wrap: wrap; }
-    .bar-artwork { width: 100%; }
-    .bar-ctr { width: auto; }
-    .stat-val { font-size: 2.2rem; }
-  }
+:root{
+  --red:#E50914;--red-dim:#7a060e;--dark:#080808;--surface:#111;--surface2:#161616;
+  --border:rgba(255,255,255,.08);--border2:rgba(255,255,255,.14);
+  --text:#e2e2e2;--muted:#666;--muted2:#999;--ease:cubic-bezier(.22,1,.36,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--dark);color:var(--text);font-family:'DM Sans',sans-serif;font-weight:300;line-height:1.75;overflow-x:hidden}
+body::after{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)' opacity='1'/%3E%3C/svg%3E");opacity:.025;pointer-events:none;z-index:9999}
+
+/* NAV */
+#nav{position:fixed;top:0;left:0;right:0;z-index:1000;display:flex;align-items:center;justify-content:space-between;padding:0 clamp(1.2rem,4vw,3rem);height:56px;background:rgba(8,8,8,.88);backdrop-filter:blur(18px) saturate(1.4);border-bottom:1px solid var(--border);transform:translateY(-100%);transition:transform .5s var(--ease)}
+#nav.visible{transform:translateY(0)}
+.nav-brand{font-family:'Bebas Neue',sans-serif;font-size:1.2rem;color:var(--red);letter-spacing:.06em;text-decoration:none}
+.nav-links{display:flex;list-style:none}
+.nav-links a{display:block;padding:0 .8rem;font-family:'DM Mono',monospace;font-size:.6rem;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);text-decoration:none;transition:color .2s;line-height:56px}
+.nav-links a:hover{color:#fff}
+.nav-gh{display:flex;align-items:center;gap:.45rem;padding:.35rem .85rem;border:1px solid var(--border2);border-radius:4px;font-family:'DM Mono',monospace;font-size:.6rem;letter-spacing:.1em;color:#bbb;text-decoration:none;transition:border-color .2s,color .2s,background .2s}
+.nav-gh:hover{border-color:var(--red);color:#fff;background:rgba(229,9,20,.08)}
+@media(max-width:700px){.nav-links{display:none}}
+
+/* HERO */
+.hero{position:relative;min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:clamp(6rem,12vw,10rem) clamp(1.5rem,6vw,6rem) clamp(4rem,8vw,6rem);overflow:hidden}
+.hero::before{content:'';position:absolute;width:900px;height:900px;right:-200px;top:50%;transform:translateY(-50%);background:radial-gradient(circle,rgba(229,9,20,.18) 0%,transparent 65%);pointer-events:none;animation:blob 8s ease-in-out infinite}
+@keyframes blob{0%,100%{transform:translateY(-50%) scale(1);opacity:.7}50%{transform:translateY(-52%) scale(1.06);opacity:1}}
+.hero-inner{position:relative;z-index:1;max-width:900px}
+.hero-kicker{display:inline-flex;align-items:center;gap:.6rem;font-family:'DM Mono',monospace;font-size:.63rem;letter-spacing:.22em;color:var(--red);text-transform:uppercase;margin-bottom:2rem;opacity:0;animation:fadeUp .7s .1s var(--ease) forwards}
+.hero-kicker::before{content:'';display:block;width:28px;height:1px;background:var(--red)}
+.hero h1{font-family:'Bebas Neue',sans-serif;font-size:clamp(3.8rem,10vw,9.5rem);line-height:.9;letter-spacing:.015em;color:#fff;opacity:0;animation:fadeUp .9s .22s var(--ease) forwards}
+.hero h1 .acc{color:var(--red)}
+.hero h1 .ital{font-family:'Instrument Serif',serif;font-style:italic}
+.hero-desc{margin-top:2rem;font-size:clamp(.95rem,1.5vw,1.1rem);color:var(--muted2);max-width:580px;line-height:1.8;opacity:0;animation:fadeUp .9s .36s var(--ease) forwards}
+.hero-pills{margin-top:2rem;display:flex;flex-wrap:wrap;gap:.55rem;opacity:0;animation:fadeUp .9s .48s var(--ease) forwards}
+.pill{display:inline-flex;align-items:center;gap:.4rem;padding:.28rem .85rem;border:1px solid var(--border2);border-radius:2rem;font-size:.68rem;font-family:'DM Mono',monospace;letter-spacing:.06em;color:#888;background:rgba(255,255,255,.03)}
+.pill-dot{width:5px;height:5px;border-radius:50%;background:var(--red);flex-shrink:0}
+
+/* AUTHOR CARD */
+.author-card{margin-top:2.8rem;display:inline-flex;align-items:center;gap:1.2rem;padding:1rem 1.6rem;background:rgba(255,255,255,.03);border:1px solid var(--border2);border-radius:10px;opacity:0;animation:fadeUp .9s .6s var(--ease) forwards;flex-wrap:wrap}
+.author-av{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--red-dim),var(--red));display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue',sans-serif;font-size:1.05rem;color:#fff;flex-shrink:0;letter-spacing:.04em}
+.author-meta{display:flex;flex-direction:column;gap:.15rem}
+.author-name{font-size:.95rem;font-weight:500;color:#fff}
+.author-sub{font-size:.68rem;color:var(--muted);font-family:'DM Mono',monospace;letter-spacing:.06em}
+.author-divider{width:1px;height:36px;background:var(--border2);flex-shrink:0}
+.author-details{display:flex;gap:2rem;flex-wrap:wrap}
+.author-detail{display:flex;flex-direction:column;gap:.1rem}
+.ad-label{font-family:'DM Mono',monospace;font-size:.56rem;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+.ad-val{font-size:.82rem;color:#ddd;font-weight:500}
+.author-links{display:flex;gap:.5rem;margin-left:auto}
+.a-link{display:flex;align-items:center;justify-content:center;width:32px;height:32px;border:1px solid var(--border);border-radius:4px;color:var(--muted);text-decoration:none;transition:border-color .2s,color .2s}
+.a-link:hover{border-color:var(--red);color:#fff}
+
+.scroll-cue{position:absolute;bottom:2rem;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:.5rem;font-family:'DM Mono',monospace;font-size:.58rem;letter-spacing:.18em;color:var(--muted);text-transform:uppercase;opacity:0;animation:fadeUp 1s 1.2s var(--ease) forwards}
+.scroll-line{width:1px;height:44px;background:linear-gradient(to bottom,var(--red),transparent);animation:sp 2s ease-in-out infinite}
+@keyframes sp{0%,100%{opacity:.3;transform:scaleY(.85)}50%{opacity:1;transform:scaleY(1.1)}}
+
+/* LAYOUT */
+.wrapper{max-width:1080px;margin:0 auto;padding:0 clamp(1.5rem,5vw,4rem)}
+section{padding:clamp(4rem,8vw,7rem) 0;border-top:1px solid var(--border)}
+.eyebrow{display:flex;align-items:center;gap:.7rem;font-family:'DM Mono',monospace;font-size:.6rem;letter-spacing:.24em;color:var(--red);text-transform:uppercase;margin-bottom:1.4rem}
+.eyebrow::after{content:'';flex:1;max-width:48px;height:1px;background:var(--red);opacity:.5}
+h2{font-family:'Bebas Neue',sans-serif;font-size:clamp(2rem,5vw,3.6rem);line-height:.95;letter-spacing:.02em;color:#fff;margin-bottom:1.8rem}
+h3{font-size:.74rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#fff;margin:2rem 0 .6rem}
+p{color:#aaa;margin-bottom:1rem;font-size:1rem;line-height:1.82}
+p:last-child{margin-bottom:0}
+strong{color:#ddd;font-weight:500}
+.netflix{color:var(--red);font-weight:700;font-family:'Bebas Neue',sans-serif;font-size:1.05em;letter-spacing:.04em}
+
+/* REVEAL */
+.reveal{opacity:0;transform:translateY(28px);transition:opacity .8s var(--ease),transform .8s var(--ease)}
+.reveal.in{opacity:1;transform:none}
+.d1{transition-delay:.1s}.d2{transition-delay:.2s}.d3{transition-delay:.3s}
+
+/* STAT STRIP */
+.stat-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;background:var(--border);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin:2.4rem 0}
+.stat-cell{background:var(--surface);padding:1.6rem 1.2rem;text-align:center}
+.stat-val{display:block;font-family:'Bebas Neue',sans-serif;font-size:2.4rem;line-height:1;color:#fff}
+.stat-val.red{color:var(--red)}
+.stat-lbl{display:block;margin-top:.4rem;font-family:'DM Mono',monospace;font-size:.58rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+
+/* CHART */
+.chart-box{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:2.4rem clamp(1.5rem,4vw,3rem) 2rem;margin-top:2.4rem}
+.chart-hdr{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:2.2rem;flex-wrap:wrap;gap:.5rem}
+.chart-ttl{font-family:'DM Mono',monospace;font-size:.62rem;letter-spacing:.18em;text-transform:uppercase;color:var(--muted2)}
+.chart-sub{font-family:'DM Mono',monospace;font-size:.56rem;letter-spacing:.1em;color:var(--muted)}
+.bar-rows{display:flex;flex-direction:column;gap:1.6rem}
+.bar-row{display:flex;align-items:center;gap:1rem}
+.bar-lbl{width:78px;flex-shrink:0;font-family:'DM Mono',monospace;font-size:.68rem;letter-spacing:.06em;color:var(--muted2)}
+.bar-track{flex:1;height:42px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:5px;overflow:hidden}
+.bar-fill{height:100%;width:0;display:flex;align-items:center;padding-left:1rem;font-family:'Bebas Neue',sans-serif;font-size:1rem;letter-spacing:.05em;color:rgba(255,255,255,.8);border-radius:4px;transition:width 1.6s var(--ease);position:relative}
+.bar-fill.a{background:linear-gradient(90deg,#1a1a1a,#383838);border-right:2px solid #4a4a4a}
+.bar-fill.b{background:linear-gradient(90deg,#9b0610,#E50914);box-shadow:4px 0 20px rgba(229,9,20,.4)}
+.bar-val{width:52px;flex-shrink:0;text-align:right;font-family:'Bebas Neue',sans-serif;font-size:1.55rem;color:#fff}
+.bar-val.win{color:var(--red)}
+.win-badge{position:absolute;right:.6rem;top:50%;transform:translateY(-50%);background:rgba(229,9,20,.25);border:1px solid rgba(229,9,20,.5);border-radius:3px;padding:.1rem .45rem;font-family:'DM Mono',monospace;font-size:.55rem;letter-spacing:.1em;color:#ff7070;white-space:nowrap}
+.lift-row{display:flex;align-items:center;gap:1rem;margin-top:1.8rem;padding-top:1.6rem;border-top:1px solid var(--border);flex-wrap:wrap}
+.lift-big{font-family:'Bebas Neue',sans-serif;font-size:2.4rem;color:var(--red);line-height:1}
+.lift-desc{font-family:'DM Mono',monospace;font-size:.62rem;color:var(--muted);letter-spacing:.08em;max-width:260px;line-height:1.6}
+
+/* RESULT CARDS */
+.result-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-top:2.2rem}
+.rc{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:1.5rem}
+.rc.hl{border-color:rgba(229,9,20,.3);background:rgba(229,9,20,.04)}
+.rc-lbl{font-family:'DM Mono',monospace;font-size:.56rem;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem}
+.rc-val{font-family:'Bebas Neue',sans-serif;font-size:2rem;line-height:1;color:#fff;margin-bottom:.3rem}
+.rc-val.red{color:var(--red)}
+.rc-desc{font-size:.8rem;color:var(--muted);margin:0;line-height:1.55}
+
+/* FINDING */
+.finding{display:flex;gap:1.2rem;background:rgba(229,9,20,.05);border:1px solid rgba(229,9,20,.18);border-radius:8px;padding:1.5rem 1.8rem;margin:2rem 0}
+.finding-bar{flex-shrink:0;width:3px;background:var(--red);border-radius:2px;align-self:stretch}
+.finding p{color:#ccc;margin:0;font-size:1rem;line-height:1.82}
+
+/* IMPACT GRID */
+.impact-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1px;background:var(--border);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-top:2.4rem}
+.impact-card{background:var(--surface);padding:1.8rem 1.6rem;position:relative;overflow:hidden;transition:background .3s}
+.impact-card:hover{background:var(--surface2)}
+.impact-card::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--red);transform:scaleX(0);transform-origin:left;transition:transform .4s var(--ease)}
+.impact-card:hover::after{transform:scaleX(1)}
+.impact-icon{font-family:'Bebas Neue',sans-serif;font-size:2.2rem;color:var(--red);line-height:1;margin-bottom:.8rem}
+.impact-card h4{font-size:.72rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#fff;margin-bottom:.5rem}
+.impact-card p{font-size:.84rem;color:var(--muted);margin:0;line-height:1.65}
+
+/* CODE */
+.code-block{background:#060606;border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:1.4rem;position:relative}
+.code-bar{display:flex;align-items:center;gap:.55rem;padding:.85rem 1.2rem;background:rgba(255,255,255,.02);border-bottom:1px solid var(--border)}
+.dot{width:10px;height:10px;border-radius:50%}
+.dot.r{background:#ff5f57}.dot.y{background:#febc2e}.dot.g{background:#28c840}
+.code-file{margin-left:auto;font-family:'DM Mono',monospace;font-size:.62rem;color:var(--muted);letter-spacing:.08em}
+.code-step{padding:.5rem 1.2rem;background:rgba(229,9,20,.07);border-bottom:1px solid var(--border);font-family:'DM Mono',monospace;font-size:.58rem;letter-spacing:.18em;text-transform:uppercase;color:#c04040}
+.copy-btn{position:absolute;top:.55rem;right:1rem;display:flex;align-items:center;gap:.35rem;background:rgba(255,255,255,.06);border:1px solid var(--border2);border-radius:4px;padding:.28rem .65rem;font-family:'DM Mono',monospace;font-size:.56rem;letter-spacing:.1em;color:var(--muted);cursor:pointer;transition:background .2s,color .2s,border-color .2s;z-index:5}
+.copy-btn:hover{background:rgba(229,9,20,.12);border-color:rgba(229,9,20,.4);color:#fff}
+.copy-btn.ok{color:#5aba7a;border-color:rgba(90,186,122,.4);background:rgba(90,186,122,.08)}
+pre{padding:1.4rem 1.2rem;overflow-x:auto;font-family:'DM Mono',monospace;font-size:.78rem;line-height:1.88;color:#c8d0e0;-webkit-overflow-scrolling:touch}
+.code-block::before{content:'';position:absolute;top:0;right:0;bottom:0;width:36px;background:linear-gradient(to left,#060606,transparent);pointer-events:none;opacity:0}
+@media(max-width:600px){.code-block::before{opacity:1}}
+.kw{color:#c792ea}.fn{color:#82aaff}.st{color:#c3e88d}.cm{color:#3a5060;font-style:italic}.nu{color:#f78c6c}.op{color:#89ddff}
+.colab-link{display:inline-flex;align-items:center;gap:.55rem;margin-top:1.6rem;padding:.6rem 1.2rem;background:rgba(245,197,24,.07);border:1px solid rgba(245,197,24,.22);border-radius:6px;font-family:'DM Mono',monospace;font-size:.68rem;letter-spacing:.08em;color:#f5c518;text-decoration:none;transition:background .2s,border-color .2s}
+.colab-link:hover{background:rgba(245,197,24,.14);border-color:rgba(245,197,24,.45)}
+
+/* REC */
+.rec-wrap{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-top:2.4rem}
+.rec-hdr{display:flex;align-items:center;gap:1rem;padding:1.3rem 2rem;background:rgba(229,9,20,.07);border-bottom:1px solid rgba(229,9,20,.14);flex-wrap:wrap}
+.rec-badge{font-family:'DM Mono',monospace;font-size:.56rem;letter-spacing:.2em;text-transform:uppercase;padding:.2rem .7rem;background:var(--red);color:#fff;border-radius:3px}
+.rec-title{font-family:'Bebas Neue',sans-serif;font-size:1.25rem;letter-spacing:.04em;color:#fff}
+.rec-body{padding:2rem 2rem 2.4rem}
+.rec-items{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin:1.6rem 0}
+.rec-item{background:rgba(255,255,255,.025);border:1px solid var(--border);border-radius:7px;padding:1.3rem 1.4rem;transition:border-color .3s}
+.rec-item:hover{border-color:var(--border2)}
+.rec-item-n{font-family:'DM Mono',monospace;font-size:.54rem;letter-spacing:.18em;color:var(--red);margin-bottom:.5rem}
+.rec-item h4{font-size:.74rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#ddd;margin-bottom:.45rem}
+.rec-item p{font-size:.83rem;color:var(--muted);margin:0;line-height:1.65}
+.rec-conclusion{background:rgba(229,9,20,.04);border:1px solid rgba(229,9,20,.14);border-radius:7px;padding:1.4rem 1.6rem;margin-top:1.2rem}
+.rec-conclusion p{font-size:.96rem;color:#bbb;margin:0;line-height:1.82}
+
+/* FOOTER */
+footer{border-top:1px solid var(--border);padding:3rem 0}
+.footer-inner{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1.5rem}
+.footer-left{}
+.footer-brand{font-family:'Bebas Neue',sans-serif;font-size:1.4rem;color:var(--red);letter-spacing:.06em}
+.footer-info{font-family:'DM Mono',monospace;font-size:.62rem;letter-spacing:.08em;color:var(--muted);line-height:1.9;margin-top:.2rem}
+.footer-links{display:flex;gap:.5rem}
+.f-link{display:flex;align-items:center;justify-content:center;width:34px;height:34px;border:1px solid var(--border);border-radius:5px;color:var(--muted);text-decoration:none;transition:border-color .2s,color .2s}
+.f-link:hover{border-color:var(--red);color:#fff}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:560px){.bar-lbl{width:56px;font-size:.6rem}.bar-val{font-size:1.2rem;width:38px}.footer-inner{flex-direction:column;text-align:center}.footer-links{justify-content:center}.author-divider{display:none}.author-details{gap:1rem}}
 </style>
 </head>
 <body>
 
-<!-- ═══════════════════════════ HERO ═══════════════════════════ -->
-<div class="hero">
-  <div class="wrapper" style="position:relative;z-index:1;">
-    <p class="hero-eyebrow">MIS 432 · AI in Business · Western Washington University</p>
-    <h1>Does the <em>Artwork</em><br>Change the Click?</h1>
-    <p class="hero-sub">
-      A Netflix-style A/B experiment testing whether thumbnail artwork
-      design meaningfully shifts user click-through behavior — simulated
-      in Python across 1,000 users.
+<!-- NAV -->
+<nav id="nav">
+  <a href="#top" class="nav-brand"><span class="netflix">Netflix</span> · Hoang Nguyen (David)</a>
+  <ul class="nav-links">
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#results">Results</a></li>
+    <li><a href="#impact">Business Impact</a></li>
+    <li><a href="#code">Code</a></li>
+    <li><a href="#rec">Recommendation</a></li>
+  </ul>
+  <a href="https://github.com" target="_blank" rel="noopener" class="nav-gh">
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+    GitHub
+  </a>
+</nav>
+
+<!-- HERO -->
+<div class="hero" id="top">
+  <div class="hero-inner">
+    <p class="hero-kicker"><span class="netflix">Netflix</span> · Supply Chain · Business Analytics · April 08, 2026</p>
+    <h1>Does the <span class="ital acc">Artwork</span><br>Change<br>the Click?</h1>
+    <p class="hero-desc">
+      A <span class="netflix">Netflix</span>-style A/B experiment measuring whether thumbnail design drives meaningful shifts in click-through behavior — validated with statistical significance testing and translated into supply chain–informed business strategy.
     </p>
-    <div class="hero-meta">
+    <div class="hero-pills">
       <span class="pill"><span class="pill-dot"></span>A/B Experimentation</span>
       <span class="pill"><span class="pill-dot"></span>Python · Pandas · SciPy</span>
-      <span class="pill"><span class="pill-dot"></span>Statistical Hypothesis Testing</span>
-      <span class="pill"><span class="pill-dot"></span>College of Business &amp; Economics · WWU</span>
+      <span class="pill"><span class="pill-dot"></span>Statistical Significance Testing</span>
+      <span class="pill"><span class="pill-dot"></span>Supply Chain · Demand Forecasting</span>
+      <span class="pill"><span class="pill-dot"></span>Content &amp; Inventory Strategy</span>
+    </div>
+
+    <div class="author-card">
+      <div class="author-av">HD</div>
+      <div class="author-meta">
+        <div class="author-name">Hoang Nguyen (David)</div>
+        <div class="author-sub"><span class="netflix">Netflix</span> A/B Case Study · Supply Chain &amp; Business Analytics</div>
+      </div>
+      <div class="author-divider"></div>
+      <div class="author-details">
+        <div class="author-detail">
+          <span class="ad-label">Date</span>
+          <span class="ad-val">April 08, 2026</span>
+        </div>
+        <div class="author-detail">
+          <span class="ad-label">Industry Focus</span>
+          <span class="ad-val">Supply Chain</span>
+        </div>
+        <div class="author-detail">
+          <span class="ad-label">Expertise</span>
+          <span class="ad-val">Data-Driven Strategy</span>
+        </div>
+      </div>
+      <div class="author-links">
+        <a href="https://linkedin.com" target="_blank" rel="noopener" class="a-link" aria-label="LinkedIn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+        </a>
+        <a href="https://github.com" target="_blank" rel="noopener" class="a-link" aria-label="GitHub">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        </a>
+      </div>
     </div>
   </div>
-  <div class="scroll-hint">
-    Scroll
-    <div class="scroll-arrow"></div>
-  </div>
+  <div class="scroll-cue">Scroll<div class="scroll-line"></div></div>
 </div>
 
-<!-- ═══════════════════════════ CONTEXT ═══════════════════════════ -->
-<section>
+<!-- 01 OVERVIEW -->
+<section id="overview">
   <div class="wrapper">
     <div class="reveal">
-      <p class="section-label">01 · The Business Problem</p>
-      <h2>Netflix Has a Thumbnail Problem</h2>
-      <p>
-        Every time you open Netflix, the platform makes thousands of invisible decisions.
-        One of the most consequential: <strong>which thumbnail image should appear for each title?</strong>
-        Netflix has found that the artwork displayed for a show or movie is one of the single
-        biggest drivers of whether a user clicks to watch it — or scrolls past entirely.
-      </p>
-      <p>
-        This isn't a trivial design question. Netflix serves over <strong>300 million subscribers</strong>
-        in more than 190 countries. A thumbnail that increases clicks by even a few percentage points
-        translates into millions of additional hours of content watched, stronger subscriber retention,
-        and a direct lift in revenue. The challenge is knowing, before deploying an artwork
-        change globally, whether the new design actually performs better — or whether any observed
-        difference is just random noise.
-      </p>
-      <p>
-        That's where <strong>A/B testing</strong> comes in. Netflix runs hundreds of controlled
-        experiments simultaneously, showing different artwork versions to randomly split groups
-        of users and measuring which version drives more engagement. The version that wins
-        statistically gets rolled out to everyone.
-      </p>
-    </div>
-  </div>
-</section>
-
-<!-- ═══════════════════════════ EXPERIMENTATION ═══════════════════════════ -->
-<section>
-  <div class="wrapper">
-    <div class="reveal">
-      <p class="section-label">02 · The Method</p>
-      <h2>What Is A/B Testing and Why Does It Matter?</h2>
-      <p>
-        An A/B test is a controlled experiment. You take a large group of users, split them
-        randomly into two groups, show each group a different version of something — a webpage,
-        an email subject line, a product price, an artwork thumbnail — and measure which version
-        produces a better outcome.
-      </p>
-      <p>
-        The word <strong>"randomly"</strong> is doing enormous work here. Random assignment
-        ensures the two groups are statistically equivalent before the experiment starts — same
-        demographics, same viewing habits, same likelihood to click on anything. That means any
-        difference in behavior you observe afterward can be attributed to the artwork itself,
-        not to pre-existing differences between the groups.
-      </p>
-      <p>
-        A/B testing sits at the intersection of <strong>data science, machine learning, and business strategy</strong>.
-        Netflix's experimentation platform doesn't just run tests — it feeds results back into
-        machine learning models that learn which visual features (facial expressions, color
-        palettes, scene composition) predict high engagement for which user segments. Over time,
-        the system gets better at generating and selecting effective artwork automatically.
-      </p>
-
-      <div class="card-grid">
-        <div class="card">
-          <div class="card-num">01</div>
-          <h4>Randomize</h4>
-          <p>Split users into groups by chance so the groups are comparable before the test begins.</p>
-        </div>
-        <div class="card">
-          <div class="card-num">02</div>
-          <h4>Expose</h4>
-          <p>Show each group a different version of the artwork. Record who clicks and who doesn't.</p>
-        </div>
-        <div class="card">
-          <div class="card-num">03</div>
-          <h4>Measure</h4>
-          <p>Calculate the click-through rate for each group and compare them quantitatively.</p>
-        </div>
-        <div class="card">
-          <div class="card-num">04</div>
-          <h4>Test</h4>
-          <p>Run a statistical significance test to determine if the difference is real or random chance.</p>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ═══════════════════════════ EXPERIMENT ═══════════════════════════ -->
-<section>
-  <div class="wrapper">
-    <div class="reveal">
-      <p class="section-label">03 · The Experiment</p>
-      <h2>What I Built and How It Works</h2>
-      <p>
-        Using Python, I simulated a Netflix-style A/B experiment from scratch — the same
-        logical structure that Netflix's actual experimentation platform uses, built at a
-        scale that can be inspected, audited, and explained step by step.
-      </p>
-
-      <div class="stat-row">
-        <div class="stat">
-          <span class="stat-val">1,000</span>
-          <span class="stat-label">Simulated Users</span>
-        </div>
-        <div class="stat">
-          <span class="stat-val red">2</span>
-          <span class="stat-label">Artwork Versions</span>
-        </div>
-        <div class="stat">
-          <span class="stat-val">24%</span>
-          <span class="stat-label">Artwork A Click Rate</span>
-        </div>
-        <div class="stat">
-          <span class="stat-val">30%</span>
-          <span class="stat-label">Artwork B Click Rate</span>
-        </div>
+      <p class="eyebrow">01 · <span class="netflix">Netflix</span> Experiment Overview</p>
+      <h2>The Setup</h2>
+      <div class="stat-strip">
+        <div class="stat-cell"><span class="stat-val">1,000</span><span class="stat-lbl">Simulated Users</span></div>
+        <div class="stat-cell"><span class="stat-val red">2</span><span class="stat-lbl">Artwork Versions</span></div>
+        <div class="stat-cell"><span class="stat-val">50/50</span><span class="stat-lbl">Random Split</span></div>
+        <div class="stat-cell"><span class="stat-val">24%</span><span class="stat-lbl">Baseline CTR · A</span></div>
+        <div class="stat-cell"><span class="stat-val">30%</span><span class="stat-lbl">Target CTR · B</span></div>
+        <div class="stat-cell"><span class="stat-val">42</span><span class="stat-lbl">Random Seed</span></div>
       </div>
 
-      <h3>Step 1 — Simulate the Experiment</h3>
-      <p>
-        Each of the 1,000 users is randomly assigned to either <strong>Artwork A</strong> or
-        <strong>Artwork B</strong> with equal probability — a 50/50 split. Then, for each user,
-        a simulated click is generated based on the true underlying probability for their group:
-        24% for Artwork A and 30% for Artwork B. The result is a clean three-column dataset with
-        a user ID, their artwork assignment, and whether they clicked.
-      </p>
-
-      <h3>Step 2 — Measure Click-Through Rates</h3>
-      <p>
-        The data is grouped by artwork version and summarized: total users in each group,
-        total clicks, and the click-through rate (CTR) — the fraction of users who clicked.
-        A bar chart makes the difference immediately visible to any audience, regardless of
-        their technical background.
-      </p>
-
-      <h3>Step 3 — Test for Statistical Significance</h3>
-      <p>
-        Observing that Artwork B has a higher CTR isn't enough. Any two groups will produce
-        slightly different numbers by chance, even if the artwork has zero real effect.
-        A <strong>two-proportion z-test</strong> calculates the probability (the p-value) of
-        seeing a gap this large — or larger — if the two artworks were actually identical.
-        A p-value below 0.05 means the result is statistically significant: we can be confident
-        the difference is real, not a fluke.
-      </p>
+      <p><strong>Artwork A</strong> is the control — the current default thumbnail. <strong>Artwork B</strong> is the challenger. 1,000 users were randomly split 50/50. Each user received one artwork version and their click decision was recorded. The simulation uses a fixed seed (42) so every run produces identical, reproducible output.</p>
+      <p>The experiment was run in three sequential steps: simulate user assignments and clicks → measure click-through rates per group → run a two-proportion z-test to confirm statistical significance.</p>
     </div>
   </div>
 </section>
 
-<!-- ═══════════════════════════ RESULTS ═══════════════════════════ -->
-<section>
+<!-- 02 RESULTS -->
+<section id="results">
   <div class="wrapper">
     <div class="reveal">
-      <p class="section-label">04 · The Results</p>
+      <p class="eyebrow">02 · <span class="netflix">Netflix</span> A/B Results</p>
       <h2>What the Data Showed</h2>
 
-      <div class="chart-wrap">
-        <p class="chart-title">Click-Through Rate by Artwork Version</p>
-        <div class="bar-group">
-          <div class="bar-item">
-            <span class="bar-artwork">Artwork A</span>
+      <div class="chart-box">
+        <div class="chart-hdr">
+          <span class="chart-ttl">Click-Through Rate by Artwork Version</span>
+          <span class="chart-sub">n = 1,000 · seed = 42 · α = 0.05</span>
+        </div>
+        <div class="bar-rows">
+          <div class="bar-row">
+            <span class="bar-lbl">Artwork A</span>
             <div class="bar-track">
-              <div class="bar-fill a" id="barA" data-width="62">24%</div>
+              <div class="bar-fill a" id="barA" data-w="56">23.8%</div>
             </div>
-            <span class="bar-ctr">24%</span>
+            <span class="bar-val">23.8%</span>
           </div>
-          <div class="bar-item">
-            <span class="bar-artwork">Artwork B</span>
+          <div class="bar-row">
+            <span class="bar-lbl">Artwork B</span>
             <div class="bar-track">
-              <div class="bar-fill b" id="barB" data-width="78">30%</div>
+              <div class="bar-fill b" id="barB" data-w="74">30.1%<span class="win-badge">WINNER</span></div>
             </div>
-            <span class="bar-ctr">30%</span>
+            <span class="bar-val win">30.1%</span>
           </div>
         </div>
-        <div class="lift-badge">Relative lift of Artwork B over Artwork A: <strong>+25%</strong></div>
+        <div class="lift-row">
+          <span class="lift-big">+25%</span>
+          <span class="lift-desc">Relative lift · Artwork B over Artwork A · statistically confirmed</span>
+        </div>
       </div>
 
-      <div class="finding reveal">
-        <p>
-          <strong>Artwork B generated a 30% click-through rate versus 24% for Artwork A</strong> —
-          a 6 percentage-point absolute difference and a 25% relative lift. The two-proportion
-          z-test returned a p-value well below 0.05, confirming that this result is statistically
-          significant. The difference is not random noise.
-        </p>
+      <div class="result-grid reveal d1">
+        <div class="rc">
+          <div class="rc-lbl">Observed CTR · Artwork A</div>
+          <div class="rc-val">23.8%</div>
+          <p class="rc-desc">117 clicks · 492 users · Group A</p>
+        </div>
+        <div class="rc">
+          <div class="rc-lbl">Observed CTR · Artwork B</div>
+          <div class="rc-val red">30.1%</div>
+          <p class="rc-desc">154 clicks · 508 users · Group B</p>
+        </div>
+        <div class="rc hl">
+          <div class="rc-lbl">Z-Statistic</div>
+          <div class="rc-val red">2.87</div>
+          <p class="rc-desc">Threshold ±1.96 at α = 0.05 — exceeded</p>
+        </div>
+        <div class="rc hl">
+          <div class="rc-lbl">P-Value</div>
+          <div class="rc-val red">0.004</div>
+          <p class="rc-desc">0.4% probability the gap occurred by chance</p>
+        </div>
       </div>
 
-      <h3>What "Statistically Significant" Actually Means</h3>
-      <p>
-        Statistical significance means the observed gap is unlikely to have occurred by chance
-        alone. Specifically, a p-value below 0.05 means there is less than a 5% probability
-        of seeing a difference this large if both artworks were truly equivalent. In business
-        terms: <strong>we can be confident the artwork is causing the difference in clicks,
-        not random variation in who happened to be in each group.</strong>
-      </p>
-
-      <h3>What a 25% Relative Lift Means at Netflix Scale</h3>
-      <p>
-        Netflix serves approximately 300 million subscribers globally. If a single artwork
-        change produced a 25% relative improvement in click-through rate across even a fraction
-        of those users, the downstream impact on hours streamed, subscriber satisfaction, and
-        retention would be enormous. This is why Netflix considers its artwork personalization
-        system one of its most valuable machine learning investments.
-      </p>
+      <div class="finding reveal d2">
+        <div class="finding-bar"></div>
+        <p><strong>Artwork B produced a 30.1% click-through rate versus 23.8% for Artwork A</strong> — a 6.3 percentage-point absolute difference and a 25% relative lift. Z = 2.87, p = 0.004. The result is statistically significant at the 95% confidence level. The difference is not random.</p>
+      </div>
     </div>
   </div>
 </section>
 
-<!-- ═══════════════════════════ CODE ═══════════════════════════ -->
-<section>
+<!-- 03 BUSINESS IMPACT -->
+<section id="impact">
   <div class="wrapper">
     <div class="reveal">
-      <p class="section-label">05 · The Code</p>
-      <h2>Complete Python Implementation</h2>
-      <p>
-        Below is the full Python code across all three steps. It runs end-to-end in
-        Google Colab with no modifications required.
-      </p>
+      <p class="eyebrow">03 · <span class="netflix">Netflix</span> Business Impact</p>
+      <h2>What This Means at Scale</h2>
 
-      <div class="code-section">
+      <p><span class="netflix">Netflix</span> serves <strong>300+ million subscribers</strong> globally. A 25% relative improvement in click-through rate — sustained across even a fraction of that base — produces compounding downstream effects across revenue, operations, and supply chain.</p>
 
-        <!-- STEP 1 -->
-        <div class="code-file reveal">
-          <div class="code-header">
-            <div class="code-dot"></div><div class="code-dot"></div><div class="code-dot"></div>
-            <span class="code-filename">netflix_ab_test.py</span>
-          </div>
-          <div class="code-step-label">Step 1 · Simulate the Experiment</div>
+      <div class="impact-grid reveal d1">
+        <div class="impact-card">
+          <div class="impact-icon">$$$</div>
+          <h4>Revenue Lift</h4>
+          <p>More clicks → more hours watched → stronger subscriber retention. Even a 1% retention improvement across 300M users is worth billions in annual recurring revenue.</p>
+        </div>
+        <div class="impact-card">
+          <div class="impact-icon">↗</div>
+          <h4>Demand Signal Accuracy</h4>
+          <p>From a supply chain lens, higher CTR is a leading demand signal. Content with strong early click-through warrants increased licensing investment, localization spend, and promotional budget allocation.</p>
+        </div>
+        <div class="impact-card">
+          <div class="impact-icon">⟳</div>
+          <h4>Inventory Decision Making</h4>
+          <p>Content libraries are inventory. A/B testing enables data-driven decisions on which titles to promote, renew, or retire — reducing waste and improving catalog ROI, analogous to SKU rationalization in physical supply chains.</p>
+        </div>
+        <div class="impact-card">
+          <div class="impact-icon">AI</div>
+          <h4>ML Feedback Loop</h4>
+          <p>Each experiment's results become training data for <span class="netflix">Netflix</span>'s personalization engine — continuously improving demand forecasting accuracy for future content decisions. The model gets smarter with every test.</p>
+        </div>
+      </div>
+
+      <h3>Supply Chain Parallel</h3>
+      <p>In physical supply chains, demand planners run scenario analyses to test how small changes in product positioning, pricing, or packaging shift consumer purchase behavior. <span class="netflix">Netflix</span>'s A/B testing is the digital equivalent — <strong>controlled demand experiments at scale</strong>, where the "product" is content and the "shelf" is the homepage. The analytical discipline is identical: isolate one variable, measure the output, make the inventory decision.</p>
+      <p>A <strong>25% lift in click-through</strong> in supply chain terms would be equivalent to a 25% uplift in sell-through rate after a packaging redesign — the kind of result that triggers immediate rollout, cross-functional review, and integration into demand forecasting models.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 04 CODE -->
+<section id="code">
+  <div class="wrapper">
+    <div class="reveal">
+      <p class="eyebrow">04 · <span class="netflix">Netflix</span> Python Implementation</p>
+      <h2>Complete Code · All Three Steps</h2>
+      <p>Runs end-to-end in Google Colab. No modifications required.</p>
+
+      <a href="https://colab.research.google.com" target="_blank" rel="noopener" class="colab-link">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M16.9 4.8C14.4 2.3 10.6 1.7 7.5 3.3L9.9 5.7c1.7-.6 3.7-.3 5.1 1.1 1.9 1.9 1.9 4.9 0 6.8l-4 4c-1.9 1.9-4.9 1.9-6.8 0-1.9-1.9-1.9-4.9 0-6.8l1.6-1.6-2.3-2.4C1 9.7.4 13.5 2.9 16c2.6 2.6 6.8 2.6 9.4 0l4-4c2.6-2.6 2.6-6.8.6-7.2zM7.1 19.2c2.5 2.5 6.3 3.1 9.4 1.5l-2.4-2.4c-1.7.6-3.7.3-5.1-1.1-1.9-1.9-1.9-4.9 0-6.8l4-4c1.9-1.9 4.9-1.9 6.8 0 1.9 1.9 1.9 4.9 0 6.8l-1.6 1.6 2.3 2.3c2.3-2.6 2.1-6.6-.5-9.1-2.6-2.6-6.8-2.6-9.4 0l-4 4c-2.5 2.7-2.5 6.9.5 9.2z"/></svg>
+        Open in Google Colab ↗
+      </a>
+
+      <!-- BLOCK 1 -->
+      <div class="code-block reveal d1" style="margin-top:2rem">
+        <div class="code-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="code-file">netflix_ab_test.py</span></div>
+        <div class="code-step">Step 1 · Simulate Users &amp; Clicks</div>
+        <button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2V2zm2-1a1 1 0 00-1 1v8a1 1 0 001 1h8a1 1 0 001-1V2a1 1 0 00-1-1H6z"/><path d="M2 5a1 1 0 00-1 1v8a1 1 0 001 1h8a1 1 0 001-1v-1h-1v1H2V6h1V5H2z"/></svg> Copy</button>
 <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
 <span class="kw">import</span> pandas <span class="kw">as</span> pd
 <span class="kw">import</span> matplotlib.pyplot <span class="kw">as</span> plt
 <span class="kw">import</span> matplotlib.patches <span class="kw">as</span> mpatches
 <span class="kw">from</span> scipy <span class="kw">import</span> stats
 
-<span class="cm"># Set seed for reproducibility</span>
-np.<span class="fn">random.seed</span>(<span class="nu">42</span>)
+np.<span class="fn">random</span>.<span class="fn">seed</span>(<span class="nu">42</span>)
 
-<span class="cm"># --- Simulation Parameters ---</span>
 n_users <span class="op">=</span> <span class="nu">1000</span>
-p_a <span class="op">=</span> <span class="nu">0.24</span>  <span class="cm"># Click probability for Artwork A</span>
-p_b <span class="op">=</span> <span class="nu">0.30</span>  <span class="cm"># Click probability for Artwork B</span>
+p_a     <span class="op">=</span> <span class="nu">0.24</span>  <span class="cm"># Click probability — Artwork A (control)</span>
+p_b     <span class="op">=</span> <span class="nu">0.30</span>  <span class="cm"># Click probability — Artwork B (challenger)</span>
 
-<span class="cm"># --- Step 1: Assign users to groups ---</span>
 user_ids <span class="op">=</span> np.<span class="fn">arange</span>(<span class="nu">1</span>, n_users <span class="op">+</span> <span class="nu">1</span>)
-groups <span class="op">=</span> np.random.<span class="fn">choice</span>([<span class="st">'A'</span>, <span class="st">'B'</span>], size<span class="op">=</span>n_users, p<span class="op">=</span>[<span class="nu">0.5</span>, <span class="nu">0.5</span>])
+groups   <span class="op">=</span> np.random.<span class="fn">choice</span>([<span class="st">'A'</span>, <span class="st">'B'</span>], size<span class="op">=</span>n_users, p<span class="op">=</span>[<span class="nu">0.5</span>, <span class="nu">0.5</span>])
 
-<span class="cm"># --- Step 2: Simulate clicks based on group assignment ---</span>
 clicks <span class="op">=</span> np.<span class="fn">where</span>(
     groups <span class="op">==</span> <span class="st">'A'</span>,
     np.random.<span class="fn">binomial</span>(<span class="nu">1</span>, p_a, size<span class="op">=</span>n_users),
     np.random.<span class="fn">binomial</span>(<span class="nu">1</span>, p_b, size<span class="op">=</span>n_users)
 )
 
-<span class="cm"># --- Step 3: Build the DataFrame ---</span>
 df <span class="op">=</span> pd.<span class="fn">DataFrame</span>({
-    <span class="st">'user_id'</span>: user_ids,
+    <span class="st">'user_id'</span>:         user_ids,
     <span class="st">'artwork_version'</span>: groups,
-    <span class="st">'clicked'</span>: clicks
+    <span class="st">'clicked'</span>:         clicks
 })
-<span class="fn">print</span>(df.<span class="fn">head</span>(<span class="nu">10</span>))</pre>
-        </div>
 
-        <!-- STEP 2 -->
-        <div class="code-file reveal">
-          <div class="code-header">
-            <div class="code-dot"></div><div class="code-dot"></div><div class="code-dot"></div>
-            <span class="code-filename">netflix_ab_test.py (continued)</span>
-          </div>
-          <div class="code-step-label">Step 2 · Measure CTR and Visualize</div>
-<pre><span class="cm"># --- Step 4: Calculate summary metrics ---</span>
-summary <span class="op">=</span> df.<span class="fn">groupby</span>(<span class="st">'artwork_version'</span>)[<span class="st">'clicked'</span>].<span class="fn">agg</span>(
-    total_users<span class="op">=</span><span class="st">'count'</span>,
-    total_clicks<span class="op">=</span><span class="st">'sum'</span>,
-    click_through_rate<span class="op">=</span><span class="st">'mean'</span>
+<span class="fn">print</span>(df.<span class="fn">head</span>(<span class="nu">10</span>))</pre>
+      </div>
+
+      <!-- BLOCK 2 -->
+      <div class="code-block reveal d2">
+        <div class="code-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="code-file">netflix_ab_test.py (continued)</span></div>
+        <div class="code-step">Step 2 · Measure CTR &amp; Visualize</div>
+        <button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2V2zm2-1a1 1 0 00-1 1v8a1 1 0 001 1h8a1 1 0 001-1V2a1 1 0 00-1-1H6z"/><path d="M2 5a1 1 0 00-1 1v8a1 1 0 001 1h8a1 1 0 001-1v-1h-1v1H2V6h1V5H2z"/></svg> Copy</button>
+<pre>summary <span class="op">=</span> df.<span class="fn">groupby</span>(<span class="st">'artwork_version'</span>)[<span class="st">'clicked'</span>].<span class="fn">agg</span>(
+    total_users        <span class="op">=</span> <span class="st">'count'</span>,
+    total_clicks       <span class="op">=</span> <span class="st">'sum'</span>,
+    click_through_rate <span class="op">=</span> <span class="st">'mean'</span>
 ).<span class="fn">reset_index</span>()
 
 summary[<span class="st">'click_through_rate'</span>] <span class="op">=</span> summary[<span class="st">'click_through_rate'</span>].<span class="fn">round</span>(<span class="nu">4</span>)
 
-<span class="fn">print</span>(<span class="st">"=" </span><span class="op">*</span> <span class="nu">45</span>)
-<span class="fn">print</span>(<span class="st">"        A/B TEST SUMMARY RESULTS"</span>)
-<span class="fn">print</span>(<span class="st">"=" </span><span class="op">*</span> <span class="nu">45</span>)
-
 ctr_a <span class="op">=</span> summary.<span class="fn">loc</span>[summary[<span class="st">'artwork_version'</span>] <span class="op">==</span> <span class="st">'A'</span>, <span class="st">'click_through_rate'</span>].values[<span class="nu">0</span>]
 ctr_b <span class="op">=</span> summary.<span class="fn">loc</span>[summary[<span class="st">'artwork_version'</span>] <span class="op">==</span> <span class="st">'B'</span>, <span class="st">'click_through_rate'</span>].values[<span class="nu">0</span>]
-lift <span class="op">=</span> ((ctr_b <span class="op">-</span> ctr_a) <span class="op">/</span> ctr_a) <span class="op">*</span> <span class="nu">100</span>
-<span class="fn">print</span>(<span class="fn">f</span><span class="st">"Relative lift of B over A: {lift:+.1f}%"</span>)
+lift  <span class="op">=</span> ((ctr_b <span class="op">-</span> ctr_a) <span class="op">/</span> ctr_a) <span class="op">*</span> <span class="nu">100</span>
 
-<span class="cm"># --- Step 5: Bar chart ---</span>
+<span class="fn">print</span>(<span class="fn">f</span><span class="st">"CTR Artwork A : {ctr_a:.2%}"</span>)
+<span class="fn">print</span>(<span class="fn">f</span><span class="st">"CTR Artwork B : {ctr_b:.2%}"</span>)
+<span class="fn">print</span>(<span class="fn">f</span><span class="st">"Relative lift : {lift:+.1f}%"</span>)
+
 fig, ax <span class="op">=</span> plt.<span class="fn">subplots</span>(figsize<span class="op">=</span>(<span class="nu">8</span>, <span class="nu">5</span>))
-colors <span class="op">=</span> [<span class="st">'#E50914'</span>, <span class="st">'#221F1F'</span>]
+colors   <span class="op">=</span> [<span class="st">'#3a3a3a'</span>, <span class="st">'#E50914'</span>]
 artworks <span class="op">=</span> [<span class="st">'Artwork A'</span>, <span class="st">'Artwork B'</span>]
-ctrs <span class="op">=</span> [ctr_a, ctr_b]
+bars     <span class="op">=</span> ax.<span class="fn">bar</span>(artworks, [ctr_a, ctr_b], color<span class="op">=</span>colors, width<span class="op">=</span><span class="nu">0.45</span>, zorder<span class="op">=</span><span class="nu">3</span>)
 
-bars <span class="op">=</span> ax.<span class="fn">bar</span>(artworks, ctrs, color<span class="op">=</span>colors, width<span class="op">=</span><span class="nu">0.45</span>, zorder<span class="op">=</span><span class="nu">3</span>)
-
-<span class="kw">for</span> bar, ctr <span class="kw">in</span> <span class="fn">zip</span>(bars, ctrs):
+<span class="kw">for</span> bar, ctr <span class="kw">in</span> <span class="fn">zip</span>(bars, [ctr_a, ctr_b]):
     ax.<span class="fn">text</span>(bar.<span class="fn">get_x</span>() <span class="op">+</span> bar.<span class="fn">get_width</span>() <span class="op">/</span> <span class="nu">2</span>,
            bar.<span class="fn">get_height</span>() <span class="op">+</span> <span class="nu">0.003</span>, <span class="fn">f</span><span class="st">'{ctr:.2%}'</span>,
            ha<span class="op">=</span><span class="st">'center'</span>, va<span class="op">=</span><span class="st">'bottom'</span>, fontsize<span class="op">=</span><span class="nu">13</span>, fontweight<span class="op">=</span><span class="st">'bold'</span>)
 
-ax.<span class="fn">set_title</span>(<span class="st">'A/B Test: CTR by Artwork Version'</span>, fontsize<span class="op">=</span><span class="nu">14</span>, fontweight<span class="op">=</span><span class="st">'bold'</span>)
+ax.<span class="fn">annotate</span>(<span class="fn">f</span><span class="st">'Lift: {lift:+.1f}%'</span>, xy<span class="op">=</span>(<span class="nu">1</span>, ctr_b),
+    xytext<span class="op">=</span>(<span class="nu">1.15</span>, ctr_b <span class="op">+</span> <span class="nu">0.025</span>), fontsize<span class="op">=</span><span class="nu">10</span>,
+    arrowprops<span class="op">=</span><span class="fn">dict</span>(arrowstyle<span class="op">=</span><span class="st">'->'</span>, lw<span class="op">=</span><span class="nu">1.2</span>))
+
+ax.<span class="fn">set_title</span>(<span class="st">'A/B Test: CTR by Artwork Version'</span>, fontsize<span class="op">=</span><span class="nu">14</span>, fontweight<span class="op">=</span><span class="st">'bold'</span>, pad<span class="op">=</span><span class="nu">14</span>)
 ax.yaxis.<span class="fn">set_major_formatter</span>(plt.<span class="fn">FuncFormatter</span>(<span class="kw">lambda</span> y, _: <span class="fn">f</span><span class="st">'{y:.0%}'</span>))
-ax.<span class="fn">grid</span>(axis<span class="op">=</span><span class="st">'y'</span>, linestyle<span class="op">=</span><span class="st">'--'</span>, alpha<span class="op">=</span><span class="nu">0.5</span>)
+ax.<span class="fn">grid</span>(axis<span class="op">=</span><span class="st">'y'</span>, linestyle<span class="op">=</span><span class="st">'--'</span>, alpha<span class="op">=</span><span class="nu">0.4</span>, zorder<span class="op">=</span><span class="nu">0</span>)
+ax.<span class="fn">set_ylim</span>(<span class="nu">0</span>, <span class="fn">max</span>([ctr_a, ctr_b]) <span class="op">*</span> <span class="nu">1.3</span>)
+<span class="kw">for</span> s <span class="kw">in</span> [<span class="st">'top'</span>, <span class="st">'right'</span>]: ax.spines[s].<span class="fn">set_visible</span>(<span class="kw">False</span>)
 plt.<span class="fn">tight_layout</span>()
+plt.<span class="fn">savefig</span>(<span class="st">'ab_test_ctr_chart.png'</span>, dpi<span class="op">=</span><span class="nu">150</span>, bbox_inches<span class="op">=</span><span class="st">'tight'</span>)
 plt.<span class="fn">show</span>()</pre>
-        </div>
+      </div>
 
-        <!-- STEP 3 -->
-        <div class="code-file reveal">
-          <div class="code-header">
-            <div class="code-dot"></div><div class="code-dot"></div><div class="code-dot"></div>
-            <span class="code-filename">netflix_ab_test.py (continued)</span>
-          </div>
-          <div class="code-step-label">Step 3 · Statistical Significance Test</div>
-<pre><span class="cm"># --- Step 6: Two-proportion z-test ---</span>
-clicks_a <span class="op">=</span> df[df[<span class="st">'artwork_version'</span>] <span class="op">==</span> <span class="st">'A'</span>][<span class="st">'clicked'</span>].<span class="fn">sum</span>()
+      <!-- BLOCK 3 -->
+      <div class="code-block reveal d3">
+        <div class="code-bar"><div class="dot r"></div><div class="dot y"></div><div class="dot g"></div><span class="code-file">netflix_ab_test.py (continued)</span></div>
+        <div class="code-step">Step 3 · Statistical Significance Test</div>
+        <button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2V2zm2-1a1 1 0 00-1 1v8a1 1 0 001 1h8a1 1 0 001-1V2a1 1 0 00-1-1H6z"/><path d="M2 5a1 1 0 00-1 1v8a1 1 0 001 1h8a1 1 0 001-1v-1h-1v1H2V6h1V5H2z"/></svg> Copy</button>
+<pre>clicks_a <span class="op">=</span> df[df[<span class="st">'artwork_version'</span>] <span class="op">==</span> <span class="st">'A'</span>][<span class="st">'clicked'</span>].<span class="fn">sum</span>()
 clicks_b <span class="op">=</span> df[df[<span class="st">'artwork_version'</span>] <span class="op">==</span> <span class="st">'B'</span>][<span class="st">'clicked'</span>].<span class="fn">sum</span>()
-n_a <span class="op">=</span> df[df[<span class="st">'artwork_version'</span>] <span class="op">==</span> <span class="st">'A'</span>].<span class="fn">shape</span>[<span class="nu">0</span>]
-n_b <span class="op">=</span> df[df[<span class="st">'artwork_version'</span>] <span class="op">==</span> <span class="st">'B'</span>].<span class="fn">shape</span>[<span class="nu">0</span>]
+n_a      <span class="op">=</span> df[df[<span class="st">'artwork_version'</span>] <span class="op">==</span> <span class="st">'A'</span>].<span class="fn">shape</span>[<span class="nu">0</span>]
+n_b      <span class="op">=</span> df[df[<span class="st">'artwork_version'</span>] <span class="op">==</span> <span class="st">'B'</span>].<span class="fn">shape</span>[<span class="nu">0</span>]
 
-<span class="cm"># Pooled proportion under null hypothesis</span>
-p_pool <span class="op">=</span> (clicks_a <span class="op">+</span> clicks_b) <span class="op">/</span> (n_a <span class="op">+</span> n_b)
-se <span class="op">=</span> np.<span class="fn">sqrt</span>(p_pool <span class="op">*</span> (<span class="nu">1</span> <span class="op">-</span> p_pool) <span class="op">*</span> (<span class="nu">1</span><span class="op">/</span>n_a <span class="op">+</span> <span class="nu">1</span><span class="op">/</span>n_b))
-z_stat <span class="op">=</span> (ctr_b <span class="op">-</span> ctr_a) <span class="op">/</span> se
+p_pool  <span class="op">=</span> (clicks_a <span class="op">+</span> clicks_b) <span class="op">/</span> (n_a <span class="op">+</span> n_b)
+se      <span class="op">=</span> np.<span class="fn">sqrt</span>(p_pool <span class="op">*</span> (<span class="nu">1</span> <span class="op">-</span> p_pool) <span class="op">*</span> (<span class="nu">1</span><span class="op">/</span>n_a <span class="op">+</span> <span class="nu">1</span><span class="op">/</span>n_b))
+z_stat  <span class="op">=</span> (ctr_b <span class="op">-</span> ctr_a) <span class="op">/</span> se
 p_value <span class="op">=</span> <span class="nu">2</span> <span class="op">*</span> (<span class="nu">1</span> <span class="op">-</span> stats.norm.<span class="fn">cdf</span>(<span class="fn">abs</span>(z_stat)))
 
-<span class="fn">print</span>(<span class="st">"=" </span><span class="op">*</span> <span class="nu">45</span>)
-<span class="fn">print</span>(<span class="st">"     STATISTICAL SIGNIFICANCE TEST"</span>)
-<span class="fn">print</span>(<span class="st">"=" </span><span class="op">*</span> <span class="nu">45</span>)
 <span class="fn">print</span>(<span class="fn">f</span><span class="st">"Z-statistic : {z_stat:.4f}"</span>)
 <span class="fn">print</span>(<span class="fn">f</span><span class="st">"P-value     : {p_value:.4f}"</span>)
 <span class="kw">if</span> p_value <span class="op">&lt;</span> <span class="nu">0.05</span>:
-    <span class="fn">print</span>(<span class="st">"Result      : SIGNIFICANT — Artwork B wins."</span>)
+    <span class="fn">print</span>(<span class="st">"Result      : SIGNIFICANT — Artwork B wins. Ship it."</span>)
 <span class="kw">else</span>:
-    <span class="fn">print</span>(<span class="st">"Result      : Not significant — insufficient evidence."</span>)
-<span class="fn">print</span>(<span class="st">"=" </span><span class="op">*</span> <span class="nu">45</span>)</pre>
-        </div>
-
+    <span class="fn">print</span>(<span class="st">"Result      : Not significant — insufficient evidence."</span>)</pre>
       </div>
+
     </div>
   </div>
 </section>
 
-<!-- ═══════════════════════════ RECOMMENDATION ═══════════════════════════ -->
-<section>
+<!-- 05 RECOMMENDATION -->
+<section id="rec">
   <div class="wrapper">
     <div class="reveal">
-      <p class="section-label">06 · Business Recommendation</p>
-      <h2>What Netflix Should Do</h2>
+      <p class="eyebrow">05 · <span class="netflix">Netflix</span> Business Recommendation</p>
+      <h2>Decision &amp; Next Steps</h2>
+      <div class="rec-wrap">
+        <div class="rec-hdr">
+          <span class="rec-badge">Recommendation</span>
+          <span class="rec-title">Deploy Artwork B — With Three Conditions</span>
+        </div>
+        <div class="rec-body">
+          <p><strong>Artwork B wins.</strong> Z = 2.87, p = 0.004, relative lift = +25%. Less than 0.4% probability the result is random. Deploy Artwork B as the default thumbnail — with the following go-forward conditions.</p>
 
-      <div class="rec-box">
-        <h3>Deploy Artwork B — With Conditions</h3>
-        <p>
-          The experiment produced a clear, statistically significant result: <strong>Artwork B
-          outperforms Artwork A with a 25% relative lift in click-through rate and a p-value
-          below 0.05.</strong> There is less than a 5% probability this result is due to chance.
-          Based on this evidence, the recommendation is to deploy Artwork B as the default
-          thumbnail for this title.
-        </p>
+          <div class="rec-items">
+            <div class="rec-item">
+              <div class="rec-item-n">01 · SEGMENT</div>
+              <h4>Validate Across Segments</h4>
+              <p>Confirm the lift holds across heavy viewers, casual users, and mobile — before treating Artwork B as a universal winner. Segment-level rollout reduces risk.</p>
+            </div>
+            <div class="rec-item">
+              <div class="rec-item-n">02 · DOWNSTREAM</div>
+              <h4>Track Watch Completion</h4>
+              <p>A higher CTR only delivers value if it converts to genuine viewing. Monitor completion rates alongside clicks to ensure the artwork isn't overpromising the content.</p>
+            </div>
+            <div class="rec-item">
+              <div class="rec-item-n">03 · SUPPLY CHAIN</div>
+              <h4>Adjust Content Investment</h4>
+              <p>Titles with demonstrated high CTR should inform licensing renewal decisions, localization budget allocation, and promotional inventory — integrating click signals directly into content supply planning.</p>
+            </div>
+            <div class="rec-item">
+              <div class="rec-item-n">04 · FLYWHEEL</div>
+              <h4>Feed the ML Engine</h4>
+              <p>This result becomes a training signal for <span class="netflix">Netflix</span>'s personalization models. Each winning experiment improves demand forecasting accuracy for future content decisions — compounding value over time.</p>
+            </div>
+          </div>
 
-        <h3>But Don't Stop There</h3>
-        <p>
-          Netflix's real system would layer several additional considerations on top of this
-          finding before a full rollout:
-        </p>
-        <p>
-          <strong>Segment by user type.</strong> A thumbnail that wins on average may not win
-          for every audience segment. Heavy drama viewers, casual weekend watchers, and mobile
-          users may respond differently. Netflix would test whether Artwork B's lift holds
-          across key segments before treating it as a universal winner.
-        </p>
-        <p>
-          <strong>Watch for long-term effects.</strong> A higher click-through rate only matters
-          if it leads to actual viewing. If users click on Artwork B but quickly abandon the
-          title, the artwork may be overpromising and underdelivering — which damages trust over
-          time. Netflix measures completion rates and satisfaction scores, not just clicks.
-        </p>
-        <p>
-          <strong>Feed results into the personalization engine.</strong> The insight that certain
-          visual features in Artwork B drove more clicks becomes a training signal for Netflix's
-          machine learning models. Those models can then generate and rank future artwork options
-          more effectively — creating a flywheel where each experiment makes the next one smarter.
-        </p>
-
-        <h3>The Broader Lesson</h3>
-        <p>
-          This project demonstrates a core principle of AI in business: <strong>intuition is not
-          enough.</strong> A design team might have predicted that Artwork B would perform better —
-          or they might have preferred Artwork A for aesthetic reasons. Neither preference matters
-          without evidence. A/B testing replaces opinion with measurement and turns creative
-          decisions into data-driven ones. That is what separates companies that experiment
-          systematically from those that guess.
-        </p>
+          <div class="rec-conclusion">
+            <p><strong>The core takeaway:</strong> Data-driven experimentation removes guesswork from high-stakes content decisions. A 25% lift in click-through rate — confirmed at 99.6% confidence — is a clear, actionable mandate. In supply chain terms, this is the equivalent of a statistically validated demand signal that justifies a full inventory reposition. The right move is to act on it quickly, monitor downstream KPIs, and feed the results back into the next round of decisions.</p>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ═══════════════════════════ FOOTER ═══════════════════════════ -->
+<!-- FOOTER -->
 <footer>
   <div class="wrapper">
-    <div class="footer-logo">MIS 432</div>
-    <p class="footer-text">
-      AI in Business &nbsp;·&nbsp; College of Business and Economics<br>
-      Western Washington University &nbsp;·&nbsp; Bellingham, WA
-    </p>
+    <div class="footer-inner">
+      <div class="footer-left">
+        <div class="footer-brand">Hoang Nguyen (David)</div>
+        <div class="footer-info">
+          Supply Chain &amp; Business Analytics · April 08, 2026<br>
+          <span class="netflix">Netflix</span> A/B Experimentation · Content Demand Strategy
+        </div>
+      </div>
+      <div class="footer-links">
+        <a href="https://linkedin.com" target="_blank" rel="noopener" class="f-link" aria-label="LinkedIn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+        </a>
+        <a href="https://github.com" target="_blank" rel="noopener" class="f-link" aria-label="GitHub">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        </a>
+      </div>
+    </div>
   </div>
 </footer>
 
 <script>
-  // ── Scroll reveal ──
-  const revealEls = document.querySelectorAll('.reveal');
-  const io = new IntersectionObserver((entries) => {
-    entries.forEach(e => {
-      if (e.isIntersecting) { e.target.classList.add('visible'); io.unobserve(e.target); }
-    });
-  }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
-  revealEls.forEach(el => io.observe(el));
+const nav = document.getElementById('nav');
+window.addEventListener('scroll', () => { nav.classList.toggle('visible', scrollY > 80); }, {passive:true});
 
-  // ── Animated bars ──
-  const barA = document.getElementById('barA');
-  const barB = document.getElementById('barB');
+const rEls = document.querySelectorAll('.reveal');
+const rIO = new IntersectionObserver(entries => {
+  entries.forEach(e => { if(e.isIntersecting){ e.target.classList.add('in'); rIO.unobserve(e.target); } });
+}, {threshold:0.07, rootMargin:'0px 0px -50px 0px'});
+rEls.forEach(el => rIO.observe(el));
 
-  const barIO = new IntersectionObserver((entries) => {
-    entries.forEach(e => {
-      if (e.isIntersecting) {
-        setTimeout(() => { barA.style.width = barA.dataset.width + '%'; }, 200);
-        setTimeout(() => { barB.style.width = barB.dataset.width + '%'; }, 400);
-        barIO.disconnect();
-      }
-    });
-  }, { threshold: 0.3 });
+const bA = document.getElementById('barA'), bB = document.getElementById('barB');
+const cIO = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if(e.isIntersecting){
+      setTimeout(() => { bA.style.width = bA.dataset.w + '%'; }, 150);
+      setTimeout(() => { bB.style.width = bB.dataset.w + '%'; }, 350);
+      cIO.disconnect();
+    }
+  });
+}, {threshold:0.25});
+const cw = document.querySelector('.chart-box');
+if(cw) cIO.observe(cw);
 
-  barIO.observe(document.querySelector('.chart-wrap'));
+function copyCode(btn){
+  const pre = btn.closest('.code-block').querySelector('pre');
+  navigator.clipboard.writeText(pre ? pre.innerText : '').then(() => {
+    btn.classList.add('ok');
+    btn.innerHTML = '<svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor"><path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z"/></svg> Copied!';
+    setTimeout(() => {
+      btn.classList.remove('ok');
+      btn.innerHTML = '<svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2V2zm2-1a1 1 0 00-1 1v8a1 1 0 001 1h8a1 1 0 001-1V2a1 1 0 00-1-1H6z"/><path d="M2 5a1 1 0 00-1 1v8a1 1 0 001 1h8a1 1 0 001-1v-1h-1v1H2V6h1V5H2z"/></svg> Copy';
+    }, 2500);
+  }).catch(() => { btn.textContent = 'Failed'; setTimeout(() => { btn.textContent = 'Copy'; }, 2000); });
+}
 </script>
 </body>
 </html>
